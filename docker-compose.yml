@@ -1,0 +1,125 @@
+version: '3.2'
+services:
+  elasticsearch:
+    container_name: elasticsearch
+    build:
+      context: elasticsearch
+      args:
+        ELK_VERSION: $ELK_VERSION
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      ES_JAVA_OPTS: "-Xmx512m -Xms512m"
+      discovery.type: single-node
+      #index.mapping.total_fields.limit: 10000
+    #restart: always
+    volumes:
+      - ./persistent-data/elasticsearch/data04:/usr/share/elasticsearch/data
+      - ./persistent-data/elasticsearch/config:/usr/share/elasticsearch/config
+    networks:
+      - elk
+
+  logstash:
+    container_name: logstash
+    build:
+      context: logstash/
+      args:
+        ELK_VERSION: $ELK_VERSION
+    volumes: 
+      - type: bind
+        source: ./logstash/pipelines
+        target: /usr/share/logstash/pipelines
+      - type: bind
+        source: ./logstash/config/pipelines.yml
+        target: /usr/share/logstash/config/pipelines.yml
+      - type: bind
+        source: ./logstash/config/logstash.yml
+        target: /usr/share/logstash/config/logstash.yml
+      - type: bind
+        source: ./persistent-data/logstash/backup/
+        target: /usr/share/logstash/backup/
+      - type: bind
+        source: ./persistent-data/logstash/restore/
+        target: /usr/share/logstash/restore/
+      - type: bind
+        source: ./ngrok
+        target: /ngrok
+    ports:
+      - "5400:5400"
+      - "5401:5401"
+    environment:
+      LS_JAVA_OPTS: "-Xmx2g -Xms2g"
+    restart: always
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+    environment: 
+      - https_proxy=http://webproxystatic-on.tsl.telus.com:8080
+      - http_proxy=http://webproxystatic-on.tsl.telus.com:8080
+
+  kibana:
+    container_name: kibana
+    build:
+      context: kibana/
+      args:
+        ELK_VERSION: $ELK_VERSION
+    ports:
+      - "5601:5601"
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+ 
+  jenkins:
+    container_name: jenkins
+    image: jenkins/jenkins
+    environment: 
+      - https_proxy=http://webproxystatic-on.tsl.telus.com:8080
+      - http_proxy=http://webproxystatic-on.tsl.telus.com:8080
+    ports: 
+      - 8080:8080
+      - 50000:50000
+    volumes:
+      - ./persistent-data/jenkins/jenkins_home:/var/jenkins_home
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+      - logstash
+    restart: always
+
+#  grafana:
+#    container_name: grafana
+#    image: grafana/grafana
+#    ports:
+#        - "3000:3000"
+#    networks:
+#      - elk
+#    depends_on:
+#      - elasticsearch
+#      - logstash
+#    volumes:
+#      - ./persistent-data/grafana:/var/lib/grafana
+#      - ./datasources:/etc/grafana/provisioning/datasources
+#    #environment: 
+#    #  - https_proxy=http://webproxystatic-on.tsl.telus.com:8080
+#    #  - http_proxy=http://webproxystatic-on.tsl.telus.com:8080
+#    restart: always
+
+#  ngrok:
+#    container_name: ngrok
+#    image: wernight/ngrok
+#    environment: 
+#      - https_proxy=http://webproxystatic-on.tsl.telus.com:8080
+#      - http_proxy=http://webproxystatic-on.tsl.telus.com:8080
+#      - NGROK_PROTOCOL=http
+#      - NGROK_PORT=5400
+#    command: tail -f entrypoint.sh
+#    networks:
+#      - elk
+
+networks:
+  elk:
+    driver: bridge
