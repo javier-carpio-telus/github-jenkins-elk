@@ -16,7 +16,7 @@ services:
     #restart: always
     volumes:
       - ./persistent-data/elasticsearch/data04:/usr/share/elasticsearch/data
-      - ./persistent-data/elasticsearch/config:/usr/share/elasticsearch/config
+      - ./elasticsearch/config:/usr/share/elasticsearch/config
     networks:
       - elk
 
